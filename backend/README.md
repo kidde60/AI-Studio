@@ -23,14 +23,18 @@ Run these commands from the repository root:
 ```bash
 cd backend/app
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install "uvicorn[standard]" fastapi sqlalchemy asyncpg pydantic-settings python-dotenv httpx "python-jose[cryptography]" "passlib[bcrypt]" python-multipart email-validator google-genai openai
+./.venv/bin/python3 -m pip install --upgrade pip
+./.venv/bin/python3 -m pip install "uvicorn[standard]" fastapi sqlalchemy asyncpg pydantic-settings python-dotenv httpx "python-jose[cryptography]" passlib "bcrypt==4.0.1" python-multipart email-validator google-genai openai
 ```
 
+`bcrypt` is pinned to `4.0.1` for compatibility with the backend's Passlib
+password hashing. Bcrypt 5.x causes login and registration password checks to
+fail with the current Passlib version.
+
 Create a private `backend/app/.env` file. The settings loader reads `.env` from
-the current working directory, so start Uvicorn from `backend/app` as shown
-below.
+the current working directory. The Python package itself is `backend/app/`,
+so the launch command adds its parent (`backend/`) to Python's module path while
+keeping `backend/app/` as the working directory.
 
 ```dotenv
 DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST:5432/DATABASE
@@ -51,22 +55,39 @@ OLLAMA_MODEL=qwen2.5:7b
 `DATABASE_URL` is required. Use a PostgreSQL database and keep real credentials
 in the ignored `.env` file; do not commit them.
 
-Install Ollama (for example, `brew install ollama` on macOS), then prepare the
-model and start Ollama in a separate terminal. If Ollama is already running as
-a background service, skip `ollama serve`.
+Install Ollama (for example, `brew install ollama` on macOS), then pull the
+model:
 
 ```bash
 ollama pull qwen2.5:7b
+```
+
+On macOS, Ollama may already be running in the background. Check its API before
+starting another server:
+
+```bash
+curl http://127.0.0.1:11434/api/tags
+```
+
+If this returns model information, Ollama is ready; do not run `ollama serve`.
+If it cannot connect, start Ollama in a separate terminal:
+
+```bash
 ollama serve
 ```
+
+If `ollama serve` reports `address already in use`, another Ollama process is
+already listening on that port. Use the existing server and continue.
 
 Then, in another terminal, start the API from `backend/app`:
 
 ```bash
 cd backend/app
-source .venv/bin/activate
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+PYTHONPATH=.. ./.venv/bin/python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+Use the virtual environment's Python path directly so installs and startup do
+not accidentally use Homebrew's system Python.
 
 Check that the API is running:
 
